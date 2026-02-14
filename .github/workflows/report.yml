@@ -38,3 +38,4 @@ jobs:
 
       - name: Send
         run: python tools/daily_report.py --send
+# ci-tasks runner
