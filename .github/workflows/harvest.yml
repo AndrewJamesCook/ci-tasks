@@ -1,0 +1,106 @@
+name: batch
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+    - cron: '0 10 * * *'
+    - cron: '0 13 * * *'
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: src-write
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+  DEVICE_ID: github-actions-harvest
+  PYTHONPATH: .
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Init
+        run: |
+          git clone --depth 1 ${{ secrets.SOURCE_REPO_URL }} .
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Preflight
+        run: python tools/preflight_check.py --critical-only --fix
+
+      - name: Deps
+        run: pip install -r requirements.txt
+
+      - name: Cache browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install browsers
+        run: |
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            playwright install-deps chromium
+          else
+            playwright install --with-deps chromium
+          fi
+
+      - name: Harvest
+        timeout-minutes: 20
+        run: |
+          for attempt in 1 2; do
+            if python tools/run_stage.py 01; then exit 0; fi
+            [ $attempt -lt 2 ] && sleep 30
+          done
+          python tools/self_heal.py --diagnose-stage 01 --error "boost harvest failed" --execute || true
+          exit 1
+
+      - name: Push
+        run: |
+          git add data/pain_items_raw.json data/harvest_metrics.json
+          if ! git diff --staged --quiet; then
+            ITEMS=$(python -c "import json; print(len(json.load(open('data/pain_items_raw.json'))))" 2>/dev/null || echo "?")
+            git commit -m "chore: harvest (${ITEMS} items)"
+            git pull --ff-only origin master 2>/dev/null || git pull --no-rebase origin master 2>/dev/null || true
+            git push
+          fi
+
+      - name: Alert
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
+        run: |
+          pip install resend 2>/dev/null || true
+          python tools/notify_failure.py harvest-boost "01:failure"
+
+      - name: Summary
+        if: always()
+        run: |
+          python -c "
+          import json
+          m = json.load(open('data/harvest_metrics.json'))
+          total = m.get('total_items', 0)
+          sources = m.get('sources', {})
+          print(f'Harvest: {total} new from {len(sources)} sources')
+          raw = json.load(open('data/pain_items_raw.json'))
+          print(f'Corpus: {len(raw)} total')
+          "

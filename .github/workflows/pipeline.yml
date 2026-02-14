@@ -1,0 +1,299 @@
+name: proc
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+    - cron: '0 19 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: src-write
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+  XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+  DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+  RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+  REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
+  NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+  DEVICE_ID: github-actions
+  PYTHONPATH: .
+  BATCH_SYNC: "1"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Init
+        run: |
+          git clone --depth 1 ${{ secrets.SOURCE_REPO_URL }} .
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Preflight
+        run: python tools/preflight_check.py --critical-only --fix
+
+      - name: Deps
+        run: pip install -r requirements.txt
+
+      - name: Tests
+        run: python -m pytest tests/test_static.py tests/test_contracts.py tests/test_smoke.py -v --timeout=60
+
+      - name: Cache browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install browsers
+        run: |
+          if [ "${{ steps.pw-cache.outputs.cache-hit }}" = "true" ]; then
+            playwright install-deps chromium
+          else
+            playwright install --with-deps chromium
+          fi
+
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface/hub
+          key: hf-all-MiniLM-L6-v2
+
+      - name: Load model
+        run: python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+
+      - name: Service checks
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage council --fix
+
+      # ── Council (morning only) ─────────────────────────────
+      - name: Metrics
+        if: github.event.schedule == '0 7 * * *' || github.event_name == 'workflow_dispatch'
+        run: python tools/strategy_review.py --mode morning
+
+      - name: Council
+        if: github.event.schedule == '0 7 * * *' || github.event_name == 'workflow_dispatch'
+        run: python tools/strategy_council.py --fallback-to-subagents --mode morning
+
+      # ── Stage 01 ───────────────────────────────────────────
+      - name: S01
+        id: s01
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          for attempt in 1 2 3; do
+            if python tools/run_stage.py 01; then
+              echo "s01=success" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            [ $attempt -lt 3 ] && sleep 30
+          done
+          python tools/self_heal.py --diagnose-stage 01 --error "failed after 3 attempts" --execute || true
+          echo "s01=failed" >> "$GITHUB_OUTPUT"; exit 1
+
+      # ── Stage 02 ───────────────────────────────────────────
+      - name: S02
+        id: s02
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          for attempt in 1 2 3; do
+            if python tools/run_stage.py 02; then
+              echo "s02=success" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            [ $attempt -lt 3 ] && sleep 30
+          done
+          python tools/self_heal.py --diagnose-stage 02 --error "failed after 3 attempts" --execute || true
+          echo "s02=failed" >> "$GITHUB_OUTPUT"; exit 1
+
+      - name: S02b
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2; do
+            if python tools/run_stage.py 02b; then exit 0; fi
+            [ $attempt -lt 2 ] && sleep 15
+          done
+          exit 1
+
+      # ── Stage 03 ───────────────────────────────────────────
+      - name: S03
+        id: s03
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2 3; do
+            if python tools/run_stage.py 03; then
+              echo "s03=success" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            [ $attempt -lt 3 ] && sleep 30
+          done
+          python tools/self_heal.py --diagnose-stage 03 --error "failed after 3 attempts" --execute || true
+          echo "s03=failed" >> "$GITHUB_OUTPUT"; exit 1
+
+      # ── Stage 04 ───────────────────────────────────────────
+      - name: S04
+        id: s04
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2 3; do
+            if python tools/run_stage.py 04; then
+              echo "s04=success" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            [ $attempt -lt 3 ] && sleep 30
+          done
+          python tools/self_heal.py --diagnose-stage 04 --error "failed after 3 attempts" --execute || true
+          echo "s04=failed" >> "$GITHUB_OUTPUT"; exit 1
+
+      # ── Stage 05 ───────────────────────────────────────────
+      - name: S05
+        id: s05
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          for attempt in 1 2 3; do
+            if python tools/run_stage.py 05; then
+              echo "s05=success" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            [ $attempt -lt 3 ] && sleep 30
+          done
+          python tools/self_heal.py --diagnose-stage 05 --error "failed after 3 attempts" --execute || true
+          echo "s05=failed" >> "$GITHUB_OUTPUT"; exit 1
+
+      # ── Stages 05b-10 ─────────────────────────────────────
+      - name: S05b
+        continue-on-error: true
+        timeout-minutes: 5
+        run: for a in 1 2; do python tools/run_stage.py 05b && exit 0; [ $a -lt 2 ] && sleep 15; done; exit 1
+
+      - name: S05c
+        continue-on-error: true
+        timeout-minutes: 5
+        run: for a in 1 2; do python tools/run_stage.py 05c && exit 0; [ $a -lt 2 ] && sleep 15; done; exit 1
+
+      - name: S06
+        continue-on-error: true
+        timeout-minutes: 10
+        run: python tools/run_stage.py 06
+
+      - name: S06b
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python tools/run_stage.py 06b
+
+      - name: S07
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python tools/run_stage.py 07
+
+      - name: S08
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python tools/run_stage.py 08
+
+      - name: S09
+        continue-on-error: true
+        timeout-minutes: 10
+        run: python tools/run_stage.py 09
+
+      - name: S10
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python tools/run_stage.py 10
+
+      # ── Health ─────────────────────────────────────────────
+      - name: Health
+        if: always()
+        run: |
+          python tools/self_heal.py --check-pipeline-health \
+            --stages \
+              "01:${{ steps.s01.outcome || 'skipped' }}" \
+              "02:${{ steps.s02.outcome || 'skipped' }}" \
+              "03:${{ steps.s03.outcome || 'skipped' }}" \
+              "04:${{ steps.s04.outcome || 'skipped' }}" \
+              "05:${{ steps.s05.outcome || 'skipped' }}"
+
+      # ── Maintenance ────────────────────────────────────────
+      - name: Prune
+        continue-on-error: true
+        run: |
+          python -c "
+          from tools.utils.supabase_client import get_client
+          from datetime import datetime, timedelta, timezone
+          sb = get_client()
+          if sb.is_available():
+              cutoff = (datetime.now(timezone.utc) - timedelta(days=180)).isoformat()
+              tbl = sb._table('scraped_ids')
+              if tbl:
+                  resp = tbl.delete().lt('created_at', cutoff).execute()
+                  count = len(resp.data) if resp and resp.data else 0
+                  print(f'Pruned {count} scraped_ids older than 180 days')
+          "
+
+      - name: Sync
+        continue-on-error: true
+        run: python -c "from tools.run_stage import sync_all_to_supabase; sync_all_to_supabase()"
+
+      # ── Commit back to source ──────────────────────────────
+      - name: Push
+        run: |
+          git add data/ config/ data/quick_flow_specs/ || true
+          if ! git diff --staged --quiet; then
+            DATE=$(date -u +%Y-%m-%d)
+            ITEMS=$(python -c "import json; print(len(json.load(open('data/pain_items_raw.json'))))" 2>/dev/null || echo "?")
+            git commit -m "chore: pipeline run ${DATE} (${ITEMS} items)"
+            git pull --ff-only origin master 2>/dev/null || git pull --no-rebase origin master 2>/dev/null || true
+            git push
+          fi
+
+      - name: Tag
+        run: |
+          TAG="pipeline-$(date -u +%Y-%m-%d)"
+          if ! git tag -l "$TAG" | grep -q .; then
+            git tag "$TAG" -m "Daily snapshot $(date -u +%Y-%m-%d)"
+            git push origin "$TAG"
+          fi
+
+      - name: Backup
+        if: always()
+        env:
+          TIGRIS_ACCESS_KEY: ${{ secrets.TIGRIS_ACCESS_KEY }}
+          TIGRIS_SECRET_KEY: ${{ secrets.TIGRIS_SECRET_KEY }}
+          TIGRIS_BUCKET: wat-backups
+        run: python tools/backup.py || true
+
+      - name: Alert
+        if: failure()
+        env:
+          S01: ${{ steps.s01.outcome }}
+          S02: ${{ steps.s02.outcome }}
+          S03: ${{ steps.s03.outcome }}
+          S04: ${{ steps.s04.outcome }}
+          S05: ${{ steps.s05.outcome }}
+        run: |
+          pip install resend 2>/dev/null || true
+          python tools/notify_failure.py daily-pipeline \
+            "01:${S01:-skipped}" "02:${S02:-skipped}" "03:${S03:-skipped}" \
+            "04:${S04:-skipped}" "05:${S05:-skipped}"
+
+      - name: Summary
+        if: always()
+        run: python tools/ci_summary.py

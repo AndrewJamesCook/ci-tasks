@@ -1,0 +1,3 @@
+# Suppress GitHub language detection and code search indexing
+* linguist-generated
+*.yml linguist-generated

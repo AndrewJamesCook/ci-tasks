@@ -1,0 +1,40 @@
+name: notify
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+    - cron: '0 21 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: report
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+  REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
+  PYTHONPATH: .
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Init
+        run: git clone --depth 1 ${{ secrets.SOURCE_REPO_URL }} .
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Deps
+        run: pip install resend
+
+      - name: Send
+        run: python tools/daily_report.py --send
