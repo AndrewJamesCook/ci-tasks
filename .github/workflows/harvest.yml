@@ -62,15 +62,28 @@ jobs:
             playwright install --with-deps chromium
           fi
 
+      # ── Stage 01 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 01"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 01 --critical-only
+
       - name: Harvest
+        id: s01
         timeout-minutes: 20
         run: |
           for attempt in 1 2; do
             if python tools/run_stage.py 01; then exit 0; fi
             [ $attempt -lt 2 ] && sleep 30
           done
-          python tools/self_heal.py --diagnose-stage 01 --error "boost harvest failed" --execute || true
           exit 1
+
+      - name: "Post-flight: Stage 01"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s01.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 01 --error "boost harvest failed" --execute || true
+          fi
 
       - name: Push
         run: |
