@@ -41,11 +41,11 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Preflight
-        run: python tools/preflight_check.py --critical-only --fix
-
       - name: Deps
         run: pip install -r requirements.txt
+
+      - name: Preflight
+        run: python tools/preflight_check.py --critical-only --fix
 
       - name: Cache browsers
         id: pw-cache
