@@ -94,6 +94,10 @@ jobs:
         run: python tools/strategy_council.py --fallback-to-subagents --mode morning
 
       # ── Stage 01 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 01"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 01 --critical-only
+
       - name: S01
         id: s01
         continue-on-error: true
@@ -105,10 +109,21 @@ jobs:
             fi
             [ $attempt -lt 3 ] && sleep 30
           done
-          python tools/self_heal.py --diagnose-stage 01 --error "failed after 3 attempts" --execute || true
           echo "s01=failed" >> "$GITHUB_OUTPUT"; exit 1
 
+      - name: "Post-flight: Stage 01"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s01.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 01 --error "Stage 01 failed after retries" --execute || true
+          fi
+
       # ── Stage 02 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 02"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 02 --critical-only
+
       - name: S02
         id: s02
         continue-on-error: true
@@ -120,10 +135,23 @@ jobs:
             fi
             [ $attempt -lt 3 ] && sleep 30
           done
-          python tools/self_heal.py --diagnose-stage 02 --error "failed after 3 attempts" --execute || true
           echo "s02=failed" >> "$GITHUB_OUTPUT"; exit 1
 
+      - name: "Post-flight: Stage 02"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s02.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 02 --error "Stage 02 failed after retries" --execute || true
+          fi
+
+      # ── Stage 02b ──────────────────────────────────────────
+      - name: "Pre-flight: Stage 02b"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 02b --critical-only
+
       - name: S02b
+        id: s02b
         continue-on-error: true
         timeout-minutes: 5
         run: |
@@ -133,7 +161,19 @@ jobs:
           done
           exit 1
 
+      - name: "Post-flight: Stage 02b"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s02b.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 02b --error "Stage 02b failed" --execute || true
+          fi
+
       # ── Stage 03 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 03"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 03 --critical-only
+
       - name: S03
         id: s03
         continue-on-error: true
@@ -145,10 +185,21 @@ jobs:
             fi
             [ $attempt -lt 3 ] && sleep 30
           done
-          python tools/self_heal.py --diagnose-stage 03 --error "failed after 3 attempts" --execute || true
           echo "s03=failed" >> "$GITHUB_OUTPUT"; exit 1
 
+      - name: "Post-flight: Stage 03"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s03.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 03 --error "Stage 03 failed after retries" --execute || true
+          fi
+
       # ── Stage 04 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 04"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 04 --critical-only
+
       - name: S04
         id: s04
         continue-on-error: true
@@ -160,10 +211,21 @@ jobs:
             fi
             [ $attempt -lt 3 ] && sleep 30
           done
-          python tools/self_heal.py --diagnose-stage 04 --error "failed after 3 attempts" --execute || true
           echo "s04=failed" >> "$GITHUB_OUTPUT"; exit 1
 
+      - name: "Post-flight: Stage 04"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s04.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 04 --error "Stage 04 failed after retries" --execute || true
+          fi
+
       # ── Stage 05 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 05"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 05 --critical-only
+
       - name: S05
         id: s05
         continue-on-error: true
@@ -175,49 +237,167 @@ jobs:
             fi
             [ $attempt -lt 3 ] && sleep 30
           done
-          python tools/self_heal.py --diagnose-stage 05 --error "failed after 3 attempts" --execute || true
           echo "s05=failed" >> "$GITHUB_OUTPUT"; exit 1
 
-      # ── Stages 05b-10 ─────────────────────────────────────
+      - name: "Post-flight: Stage 05"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s05.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 05 --error "Stage 05 failed after retries" --execute || true
+          fi
+
+      # ── Stage 05b ──────────────────────────────────────────
+      - name: "Pre-flight: Stage 05b"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 05b --critical-only
+
       - name: S05b
+        id: s05b
         continue-on-error: true
         timeout-minutes: 5
         run: for a in 1 2; do python tools/run_stage.py 05b && exit 0; [ $a -lt 2 ] && sleep 15; done; exit 1
 
+      - name: "Post-flight: Stage 05b"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s05b.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 05b --error "Stage 05b failed" --execute || true
+          fi
+
+      # ── Stage 05c ──────────────────────────────────────────
+      - name: "Pre-flight: Stage 05c"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 05c --critical-only
+
       - name: S05c
+        id: s05c
         continue-on-error: true
         timeout-minutes: 5
         run: for a in 1 2; do python tools/run_stage.py 05c && exit 0; [ $a -lt 2 ] && sleep 15; done; exit 1
 
+      - name: "Post-flight: Stage 05c"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s05c.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 05c --error "Stage 05c failed" --execute || true
+          fi
+
+      # ── Stage 06 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 06"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 06 --critical-only
+
       - name: S06
+        id: s06
         continue-on-error: true
         timeout-minutes: 10
         run: python tools/run_stage.py 06
 
+      - name: "Post-flight: Stage 06"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s06.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 06 --error "Stage 06 failed" --execute || true
+          fi
+
+      # ── Stage 06b ──────────────────────────────────────────
+      - name: "Pre-flight: Stage 06b"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 06b --critical-only
+
       - name: S06b
+        id: s06b
         continue-on-error: true
         timeout-minutes: 5
         run: python tools/run_stage.py 06b
 
+      - name: "Post-flight: Stage 06b"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s06b.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 06b --error "Stage 06b failed" --execute || true
+          fi
+
+      # ── Stage 07 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 07"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 07 --critical-only
+
       - name: S07
+        id: s07
         continue-on-error: true
         timeout-minutes: 5
         run: python tools/run_stage.py 07
 
+      - name: "Post-flight: Stage 07"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s07.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 07 --error "Stage 07 failed" --execute || true
+          fi
+
+      # ── Stage 08 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 08"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 08 --critical-only
+
       - name: S08
+        id: s08
         continue-on-error: true
         timeout-minutes: 5
         run: python tools/run_stage.py 08
 
+      - name: "Post-flight: Stage 08"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s08.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 08 --error "Stage 08 failed" --execute || true
+          fi
+
+      # ── Stage 09 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 09"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 09 --critical-only
+
       - name: S09
+        id: s09
         continue-on-error: true
         timeout-minutes: 10
         run: python tools/run_stage.py 09
 
+      - name: "Post-flight: Stage 09"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s09.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 09 --error "Stage 09 failed" --execute || true
+          fi
+
+      # ── Stage 10 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 10"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 10 --critical-only
+
       - name: S10
+        id: s10
         continue-on-error: true
         timeout-minutes: 5
         run: python tools/run_stage.py 10
+
+      - name: "Post-flight: Stage 10"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s10.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 10 --error "Stage 10 failed" --execute || true
+          fi
 
       # ── Health ─────────────────────────────────────────────
       - name: Health
