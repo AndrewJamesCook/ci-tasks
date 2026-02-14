@@ -1,0 +1,391 @@
+name: incr
+
+on:
+  schedule:
+    - cron: '35 1,10,13,22 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: src-write
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+  XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+  DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+  RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+  REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
+  NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+  DEVICE_ID: github-actions-incremental
+  PYTHONPATH: .
+  BATCH_SYNC: "1"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Init
+        run: |
+          git clone --depth 1 ${{ secrets.SOURCE_REPO_URL }} .
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Preflight
+        run: python tools/preflight_check.py --critical-only --fix
+
+      - name: Deps
+        run: pip install -r requirements.txt
+
+      - name: Cache models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface/hub
+          key: hf-all-MiniLM-L6-v2
+
+      - name: Load model
+        run: python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+
+      # ── Stage 02 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 02"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 02 --critical-only
+
+      - name: S02
+        id: s02
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          for attempt in 1 2 3; do
+            if python tools/run_stage.py 02; then
+              echo "s02=success" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            [ $attempt -lt 3 ] && sleep 30
+          done
+          echo "s02=failed" >> "$GITHUB_OUTPUT"; exit 1
+
+      - name: "Post-flight: Stage 02"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s02.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 02 --error "Stage 02 failed after retries" --execute || true
+          fi
+
+      # ── Stage 02b ──────────────────────────────────────────
+      - name: "Pre-flight: Stage 02b"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 02b --critical-only
+
+      - name: S02b
+        id: s02b
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2; do
+            if python tools/run_stage.py 02b; then exit 0; fi
+            [ $attempt -lt 2 ] && sleep 15
+          done
+          exit 1
+
+      - name: "Post-flight: Stage 02b"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s02b.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 02b --error "Stage 02b failed" --execute || true
+          fi
+
+      # ── Stage 03 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 03"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 03 --critical-only
+
+      - name: S03
+        id: s03
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2 3; do
+            if python tools/run_stage.py 03; then
+              echo "s03=success" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            [ $attempt -lt 3 ] && sleep 30
+          done
+          echo "s03=failed" >> "$GITHUB_OUTPUT"; exit 1
+
+      - name: "Post-flight: Stage 03"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s03.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 03 --error "Stage 03 failed after retries" --execute || true
+          fi
+
+      # ── Stage 04 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 04"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 04 --critical-only
+
+      - name: S04
+        id: s04
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2 3; do
+            if python tools/run_stage.py 04; then
+              echo "s04=success" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            [ $attempt -lt 3 ] && sleep 30
+          done
+          echo "s04=failed" >> "$GITHUB_OUTPUT"; exit 1
+
+      - name: "Post-flight: Stage 04"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s04.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 04 --error "Stage 04 failed after retries" --execute || true
+          fi
+
+      # ── Stage 05 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 05"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 05 --critical-only
+
+      - name: S05
+        id: s05
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          for attempt in 1 2 3; do
+            if python tools/run_stage.py 05; then
+              echo "s05=success" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            [ $attempt -lt 3 ] && sleep 30
+          done
+          echo "s05=failed" >> "$GITHUB_OUTPUT"; exit 1
+
+      - name: "Post-flight: Stage 05"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s05.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 05 --error "Stage 05 failed after retries" --execute || true
+          fi
+
+      # ── Stage 05b ──────────────────────────────────────────
+      - name: "Pre-flight: Stage 05b"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 05b --critical-only
+
+      - name: S05b
+        id: s05b
+        continue-on-error: true
+        timeout-minutes: 5
+        run: for a in 1 2; do python tools/run_stage.py 05b && exit 0; [ $a -lt 2 ] && sleep 15; done; exit 1
+
+      - name: "Post-flight: Stage 05b"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s05b.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 05b --error "Stage 05b failed" --execute || true
+          fi
+
+      # ── Stage 05c ──────────────────────────────────────────
+      - name: "Pre-flight: Stage 05c"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 05c --critical-only
+
+      - name: S05c
+        id: s05c
+        continue-on-error: true
+        timeout-minutes: 5
+        run: for a in 1 2; do python tools/run_stage.py 05c && exit 0; [ $a -lt 2 ] && sleep 15; done; exit 1
+
+      - name: "Post-flight: Stage 05c"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s05c.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 05c --error "Stage 05c failed" --execute || true
+          fi
+
+      # ── Stage 06 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 06"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 06 --critical-only
+
+      - name: S06
+        id: s06
+        continue-on-error: true
+        timeout-minutes: 10
+        run: python tools/run_stage.py 06
+
+      - name: "Post-flight: Stage 06"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s06.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 06 --error "Stage 06 failed" --execute || true
+          fi
+
+      # ── Stage 06b ──────────────────────────────────────────
+      - name: "Pre-flight: Stage 06b"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 06b --critical-only
+
+      - name: S06b
+        id: s06b
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python tools/run_stage.py 06b
+
+      - name: "Post-flight: Stage 06b"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s06b.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 06b --error "Stage 06b failed" --execute || true
+          fi
+
+      # ── Stage 07 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 07"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 07 --critical-only
+
+      - name: S07
+        id: s07
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python tools/run_stage.py 07
+
+      - name: "Post-flight: Stage 07"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s07.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 07 --error "Stage 07 failed" --execute || true
+          fi
+
+      # ── Stage 08 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 08"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 08 --critical-only
+
+      - name: S08
+        id: s08
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python tools/run_stage.py 08
+
+      - name: "Post-flight: Stage 08"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s08.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 08 --error "Stage 08 failed" --execute || true
+          fi
+
+      # ── Stage 09 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 09"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 09 --critical-only
+
+      - name: S09
+        id: s09
+        continue-on-error: true
+        timeout-minutes: 10
+        run: python tools/run_stage.py 09
+
+      - name: "Post-flight: Stage 09"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s09.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 09 --error "Stage 09 failed" --execute || true
+          fi
+
+      # ── Stage 10 ───────────────────────────────────────────
+      - name: "Pre-flight: Stage 10"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 10 --critical-only
+
+      - name: S10
+        id: s10
+        continue-on-error: true
+        timeout-minutes: 5
+        run: python tools/run_stage.py 10
+
+      - name: "Post-flight: Stage 10"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s10.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 10 --error "Stage 10 failed" --execute || true
+          fi
+
+      # ── Health ─────────────────────────────────────────────
+      - name: Health
+        if: always()
+        run: |
+          python tools/self_heal.py --check-pipeline-health \
+            --stages \
+              "02:${{ steps.s02.outcome || 'skipped' }}" \
+              "03:${{ steps.s03.outcome || 'skipped' }}" \
+              "04:${{ steps.s04.outcome || 'skipped' }}" \
+              "05:${{ steps.s05.outcome || 'skipped' }}"
+
+      # ── Maintenance ────────────────────────────────────────
+      - name: Sync
+        continue-on-error: true
+        run: python -c "from tools.run_stage import sync_all_to_supabase; sync_all_to_supabase()"
+
+      - name: Snapshot
+        continue-on-error: true
+        run: python tools/record_funnel_snapshot.py
+
+      # ── Commit back to source ──────────────────────────────
+      - name: Push
+        run: |
+          git add data/ config/ data/quick_flow_specs/ || true
+          if ! git diff --staged --quiet; then
+            TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M")
+            git commit -m "chore: incremental pipeline ${TIMESTAMP}"
+            git pull --ff-only origin master 2>/dev/null || git pull --no-rebase origin master 2>/dev/null || true
+            git push
+          fi
+
+      - name: Alert
+        if: failure()
+        env:
+          S02: ${{ steps.s02.outcome }}
+          S03: ${{ steps.s03.outcome }}
+          S04: ${{ steps.s04.outcome }}
+          S05: ${{ steps.s05.outcome }}
+        run: |
+          pip install resend 2>/dev/null || true
+          python tools/notify_failure.py incremental-pipeline \
+            "02:${S02:-skipped}" "03:${S03:-skipped}" \
+            "04:${S04:-skipped}" "05:${S05:-skipped}"
+
+      - name: Summary
+        if: always()
+        run: python tools/ci_summary.py
+# ci-tasks runner
