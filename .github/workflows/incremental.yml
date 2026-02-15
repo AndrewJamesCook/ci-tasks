@@ -69,7 +69,7 @@ jobs:
       - name: S02
         id: s02
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 25
         run: |
           for attempt in 1 2 3; do
             if python tools/run_stage.py 02; then
@@ -171,7 +171,7 @@ jobs:
       - name: S05
         id: s05
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           for attempt in 1 2 3; do
             if python tools/run_stage.py 05; then
@@ -235,7 +235,7 @@ jobs:
       - name: S06
         id: s06
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: python tools/run_stage.py 06
 
       - name: "Post-flight: Stage 06"
@@ -368,6 +368,7 @@ jobs:
           if ! git diff --staged --quiet; then
             TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M")
             git commit -m "chore: incremental pipeline ${TIMESTAMP}"
+            git fetch --unshallow origin master 2>/dev/null || git fetch origin master 2>/dev/null || true
             git pull --ff-only origin master 2>/dev/null || git pull --no-rebase origin master 2>/dev/null || true
             git push
           fi

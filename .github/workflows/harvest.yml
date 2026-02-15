@@ -91,6 +91,7 @@ jobs:
           if ! git diff --staged --quiet; then
             ITEMS=$(python -c "import json; print(len(json.load(open('data/pain_items_raw.json'))))" 2>/dev/null || echo "?")
             git commit -m "chore: harvest (${ITEMS} items)"
+            git fetch --unshallow origin master 2>/dev/null || git fetch origin master 2>/dev/null || true
             git pull --ff-only origin master 2>/dev/null || git pull --no-rebase origin master 2>/dev/null || true
             git push
           fi
