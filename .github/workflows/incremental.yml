@@ -44,13 +44,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
+
+      - name: Deps
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Verify deps
+        run: python -c "from supabase import create_client; from jsonschema import validate; import httpx; import pydantic; print('All critical imports OK')"
 
       - name: Preflight
         run: python tools/preflight_check.py --critical-only --fix
-
-      - name: Deps
-        run: pip install -r requirements.txt
 
       - name: Cache models
         uses: actions/cache@v4
