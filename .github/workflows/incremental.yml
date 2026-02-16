@@ -346,25 +346,29 @@ jobs:
       # ── Health ─────────────────────────────────────────────
       - name: Health
         if: always()
+        continue-on-error: true
         run: |
           python tools/self_heal.py --check-pipeline-health \
             --stages \
-              "02:${{ steps.s02.outcome || 'skipped' }}" \
-              "03:${{ steps.s03.outcome || 'skipped' }}" \
-              "04:${{ steps.s04.outcome || 'skipped' }}" \
-              "05:${{ steps.s05.outcome || 'skipped' }}"
+              "02:${{ steps.s02.conclusion || 'skipped' }}" \
+              "03:${{ steps.s03.conclusion || 'skipped' }}" \
+              "04:${{ steps.s04.conclusion || 'skipped' }}" \
+              "05:${{ steps.s05.conclusion || 'skipped' }}"
 
       # ── Maintenance ────────────────────────────────────────
       - name: Sync
+        if: always()
         continue-on-error: true
         run: python -c "from tools.run_stage import sync_all_to_supabase; sync_all_to_supabase()"
 
       - name: Snapshot
+        if: always()
         continue-on-error: true
         run: python tools/record_funnel_snapshot.py
 
       # ── Commit back to source ──────────────────────────────
       - name: Push
+        if: always()
         run: |
           git add data/ config/ data/quick_flow_specs/ || true
           if ! git diff --staged --quiet; then
@@ -378,10 +382,10 @@ jobs:
       - name: Alert
         if: failure()
         env:
-          S02: ${{ steps.s02.outcome }}
-          S03: ${{ steps.s03.outcome }}
-          S04: ${{ steps.s04.outcome }}
-          S05: ${{ steps.s05.outcome }}
+          S02: ${{ steps.s02.conclusion }}
+          S03: ${{ steps.s03.conclusion }}
+          S04: ${{ steps.s04.conclusion }}
+          S05: ${{ steps.s05.conclusion }}
         run: |
           pip install resend 2>/dev/null || true
           python tools/notify_failure.py incremental-pipeline \

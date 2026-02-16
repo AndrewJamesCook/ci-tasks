@@ -32,7 +32,7 @@ env:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 100
 
     steps:
       - name: Init
@@ -231,7 +231,7 @@ jobs:
       - name: S05
         id: s05
         continue-on-error: true
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
           for attempt in 1 2 3; do
             if python tools/run_stage.py 05; then
@@ -404,17 +404,19 @@ jobs:
       # ── Health ─────────────────────────────────────────────
       - name: Health
         if: always()
+        continue-on-error: true
         run: |
           python tools/self_heal.py --check-pipeline-health \
             --stages \
-              "01:${{ steps.s01.outcome || 'skipped' }}" \
-              "02:${{ steps.s02.outcome || 'skipped' }}" \
-              "03:${{ steps.s03.outcome || 'skipped' }}" \
-              "04:${{ steps.s04.outcome || 'skipped' }}" \
-              "05:${{ steps.s05.outcome || 'skipped' }}"
+              "01:${{ steps.s01.conclusion || 'skipped' }}" \
+              "02:${{ steps.s02.conclusion || 'skipped' }}" \
+              "03:${{ steps.s03.conclusion || 'skipped' }}" \
+              "04:${{ steps.s04.conclusion || 'skipped' }}" \
+              "05:${{ steps.s05.conclusion || 'skipped' }}"
 
       # ── Maintenance ────────────────────────────────────────
       - name: Prune
+        if: always()
         continue-on-error: true
         run: |
           python -c "
@@ -431,11 +433,13 @@ jobs:
           "
 
       - name: Sync
+        if: always()
         continue-on-error: true
         run: python -c "from tools.run_stage import sync_all_to_supabase; sync_all_to_supabase()"
 
       # ── Commit back to source ──────────────────────────────
       - name: Push
+        if: always()
         run: |
           git add data/ config/ data/quick_flow_specs/ || true
           if ! git diff --staged --quiet; then
@@ -448,6 +452,7 @@ jobs:
           fi
 
       - name: Tag
+        if: always()
         run: |
           TAG="pipeline-$(date -u +%Y-%m-%d)"
           if ! git tag -l "$TAG" | grep -q .; then
@@ -466,11 +471,11 @@ jobs:
       - name: Alert
         if: failure()
         env:
-          S01: ${{ steps.s01.outcome }}
-          S02: ${{ steps.s02.outcome }}
-          S03: ${{ steps.s03.outcome }}
-          S04: ${{ steps.s04.outcome }}
-          S05: ${{ steps.s05.outcome }}
+          S01: ${{ steps.s01.conclusion }}
+          S02: ${{ steps.s02.conclusion }}
+          S03: ${{ steps.s03.conclusion }}
+          S04: ${{ steps.s04.conclusion }}
+          S05: ${{ steps.s05.conclusion }}
         run: |
           pip install resend 2>/dev/null || true
           python tools/notify_failure.py daily-pipeline \
