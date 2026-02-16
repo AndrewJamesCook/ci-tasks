@@ -74,6 +74,17 @@ jobs:
         if: steps.check.outputs.run != 'false'
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Run security scan (SecOps pre-step)
+        if: steps.check.outputs.run != 'false' && matrix.team == 'secops'
+        continue-on-error: true
+        working-directory: repo
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          PYTHONPATH: .
+        run: python tools/security_scan.py
+
       - name: Run team session
         if: steps.check.outputs.run != 'false'
         working-directory: repo
