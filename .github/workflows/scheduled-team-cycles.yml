@@ -1,0 +1,189 @@
+# Copy this file to ci-tasks repo as .github/workflows/scheduled-team-cycles.yml
+# Weekly: SecOps + QA audit sessions (Monday 06:00 UTC)
+# Monthly: People & Culture, Post-Launch, Data Eng, Librarian (1st 06:00 UTC)
+name: Scheduled Team Cycles
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'     # Weekly Monday 06:00 UTC
+    - cron: '0 6 1 * *'     # Monthly 1st 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      teams:
+        description: 'Comma-separated team names to run'
+        required: true
+        default: 'secops,qa'
+      max_turns:
+        description: 'Max agent turns per team session'
+        type: number
+        default: 30
+
+concurrency:
+  group: scheduled-team-cycles
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Weekly: SecOps security audit + QA regression review ──────────
+  weekly-teams:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.schedule == '0 6 * * 1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        team: [secops, qa]
+
+    steps:
+      - name: Check if team requested (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        id: check
+        env:
+          REQUESTED_TEAMS: ${{ inputs.teams }}
+          MATRIX_TEAM: ${{ matrix.team }}
+        run: |
+          if echo "$REQUESTED_TEAMS" | grep -qw "$MATRIX_TEAM"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Clone private repo
+        if: steps.check.outputs.run != 'false'
+        run: |
+          git clone --depth 1 "https://x-access-token:${{ secrets.PRIVATE_REPO_PAT }}@github.com/AndrewJamesCook/AppResearch.git" repo
+        env:
+          GIT_TERMINAL_PROMPT: 0
+
+      - name: Setup Python
+        if: steps.check.outputs.run != 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        if: steps.check.outputs.run != 'false'
+        working-directory: repo
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Install Claude Code CLI
+        if: steps.check.outputs.run != 'false'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run team session
+        if: steps.check.outputs.run != 'false'
+        working-directory: repo
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DEVICE_ID: github-actions
+          PYTHONPATH: .
+          MAX_TURNS: ${{ inputs.max_turns || 30 }}
+          MATRIX_TEAM: ${{ matrix.team }}
+        run: python tools/team_dispatch.py --team "$MATRIX_TEAM" --chief-only --max-turns "$MAX_TURNS"
+
+      - name: Push changes back to private repo
+        if: steps.check.outputs.run != 'false'
+        working-directory: repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git push || echo "Nothing to push"
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          MATRIX_TEAM: ${{ matrix.team }}
+        run: |
+          if [ -n "$NTFY_TOPIC" ]; then
+            curl -s -d "$MATRIX_TEAM weekly session failed. Check GHA logs." \
+              "https://ntfy.sh/$NTFY_TOPIC" || true
+          fi
+
+  # ── Monthly: People & Culture, Post-Launch, Data Eng, Librarian ──
+  monthly-teams:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.schedule == '0 6 1 * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        team: [people-culture, post-launch, data-engineering, librarian]
+
+    steps:
+      - name: Check if team requested (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        id: check
+        env:
+          REQUESTED_TEAMS: ${{ inputs.teams }}
+          MATRIX_TEAM: ${{ matrix.team }}
+        run: |
+          if echo "$REQUESTED_TEAMS" | grep -qw "$MATRIX_TEAM"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Clone private repo
+        if: steps.check.outputs.run != 'false'
+        run: |
+          git clone --depth 1 "https://x-access-token:${{ secrets.PRIVATE_REPO_PAT }}@github.com/AndrewJamesCook/AppResearch.git" repo
+        env:
+          GIT_TERMINAL_PROMPT: 0
+
+      - name: Setup Python
+        if: steps.check.outputs.run != 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        if: steps.check.outputs.run != 'false'
+        working-directory: repo
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Install Claude Code CLI
+        if: steps.check.outputs.run != 'false'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run team session
+        if: steps.check.outputs.run != 'false'
+        working-directory: repo
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          DEVICE_ID: github-actions
+          PYTHONPATH: .
+          MAX_TURNS: ${{ inputs.max_turns || 30 }}
+          MATRIX_TEAM: ${{ matrix.team }}
+        run: python tools/team_dispatch.py --team "$MATRIX_TEAM" --chief-only --max-turns "$MAX_TURNS"
+
+      - name: Push changes back to private repo
+        if: steps.check.outputs.run != 'false'
+        working-directory: repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git push || echo "Nothing to push"
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          MATRIX_TEAM: ${{ matrix.team }}
+        run: |
+          if [ -n "$NTFY_TOPIC" ]; then
+            curl -s -d "$MATRIX_TEAM monthly session failed. Check GHA logs." \
+              "https://ntfy.sh/$NTFY_TOPIC" || true
+          fi
