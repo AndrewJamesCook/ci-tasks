@@ -129,7 +129,7 @@ jobs:
       - name: S02
         id: s02
         continue-on-error: true
-        timeout-minutes: 32
+        timeout-minutes: 45
         run: |
           for attempt in 1 2 3; do
             if python tools/run_stage.py 02; then
