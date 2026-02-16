@@ -86,14 +86,14 @@ jobs:
         continue-on-error: true
         run: python tools/preflight_check.py --stage council --fix
 
-      # ── Council (morning only) ─────────────────────────────
+      # ── Advisory Council (morning only) ─────────────────────
       - name: Metrics
         if: github.event.schedule == '0 7 * * *' || github.event_name == 'workflow_dispatch'
-        run: python tools/strategy_review.py --mode morning
+        run: python tools/advisory_review.py --mode morning
 
       - name: Council
         if: github.event.schedule == '0 7 * * *' || github.event_name == 'workflow_dispatch'
-        run: python tools/strategy_council.py --fallback-to-subagents --mode morning
+        run: python tools/advisory_council.py --fallback-to-subagents --mode morning
 
       # ── Stage 01 ───────────────────────────────────────────
       - name: "Pre-flight: Stage 01"
