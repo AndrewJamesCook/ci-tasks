@@ -94,8 +94,16 @@ jobs:
             ITEMS=$(python -c "import json; print(len(json.load(open('data/pain_items_raw.json'))))" 2>/dev/null || echo "?")
             git commit -m "chore: harvest (${ITEMS} items)"
             git fetch --unshallow origin master 2>/dev/null || git fetch origin master 2>/dev/null || true
-            git pull --ff-only origin master 2>/dev/null || git pull --no-rebase origin master 2>/dev/null || true
-            git push
+            if ! git push 2>/dev/null; then
+              echo "Push failed, attempting pull with merge..."
+              if ! git pull --no-rebase origin master 2>/dev/null; then
+                echo "Merge conflict detected, resolving data/ files with ours..."
+                git checkout --ours data/ config/ 2>/dev/null || true
+                git add data/ config/ 2>/dev/null || true
+                git commit --no-edit 2>/dev/null || true
+              fi
+              git push
+            fi
           fi
 
       - name: Alert
