@@ -229,6 +229,25 @@ jobs:
             python tools/self_heal.py --diagnose-stage 05c --error "Stage 05c failed" --execute || true
           fi
 
+      # ── Stage 05d ──────────────────────────────────────────
+      - name: "Pre-flight: Stage 05d"
+        continue-on-error: true
+        run: python tools/preflight_check.py --stage 05d --critical-only
+
+      - name: S05d
+        id: s05d
+        continue-on-error: true
+        timeout-minutes: 15
+        run: for a in 1 2; do python tools/run_stage.py 05d && exit 0; [ $a -lt 2 ] && sleep 15; done; exit 1
+
+      - name: "Post-flight: Stage 05d"
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ "${{ steps.s05d.outcome }}" = "failure" ]; then
+            python tools/self_heal.py --diagnose-stage 05d --error "Stage 05d failed" --execute || true
+          fi
+
       # ── Stage 06 ───────────────────────────────────────────
       - name: "Pre-flight: Stage 06"
         continue-on-error: true
