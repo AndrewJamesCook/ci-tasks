@@ -446,7 +446,7 @@ jobs:
               cutoff = (datetime.now(timezone.utc) - timedelta(days=180)).isoformat()
               tbl = sb._table('scraped_ids')
               if tbl:
-                  resp = tbl.delete().lt('created_at', cutoff).execute()
+                  resp = tbl.delete().lt('first_seen', cutoff).execute()
                   count = len(resp.data) if resp and resp.data else 0
                   print(f'Pruned {count} scraped_ids older than 180 days')
           "
