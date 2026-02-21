@@ -486,7 +486,7 @@ jobs:
           TAG="pipeline-$(date -u +%Y-%m-%d)"
           if ! git tag -l "$TAG" | grep -q .; then
             git tag "$TAG" -m "Daily snapshot $(date -u +%Y-%m-%d)"
-            git push origin "$TAG"
+            git push origin "$TAG" 2>/dev/null || echo "Tag $TAG already exists on remote, skipping"
           fi
 
       - name: Backup
