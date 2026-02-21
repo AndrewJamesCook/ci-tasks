@@ -16,6 +16,9 @@ permissions:
 env:
   RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
   REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
   PYTHONPATH: .
 
 jobs:
