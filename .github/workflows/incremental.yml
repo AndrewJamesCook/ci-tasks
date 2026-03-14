@@ -71,7 +71,7 @@ jobs:
       - name: S02
         id: s02
         continue-on-error: true
-        timeout-minutes: 45
+        timeout-minutes: 60
         run: |
           for attempt in 1 2 3; do
             if python tools/run_stage.py 02; then
@@ -173,7 +173,7 @@ jobs:
       - name: S05
         id: s05
         continue-on-error: true
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: |
           for attempt in 1 2 3; do
             if python tools/run_stage.py 05; then
