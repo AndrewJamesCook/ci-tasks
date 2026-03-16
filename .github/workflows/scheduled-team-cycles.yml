@@ -1,6 +1,5 @@
-# Copy this file to ci-tasks repo as .github/workflows/scheduled-team-cycles.yml
-# Weekly: SecOps + QA audit sessions (Monday 06:00 UTC)
-# Monthly: People & Culture, Post-Launch, Data Eng, Librarian (1st 06:00 UTC)
+# Weekly: Core agent audit sessions (Monday 06:00 UTC)
+# Monthly: Core agent extended session (1st 06:00 UTC)
 name: Scheduled Team Cycles
 
 on:
@@ -12,7 +11,7 @@ on:
       teams:
         description: 'Comma-separated team names to run'
         required: true
-        default: 'secops,qa'
+        default: 'core'
       max_turns:
         description: 'Max agent turns per team session'
         type: number
@@ -26,7 +25,7 @@ permissions:
   contents: read
 
 jobs:
-  # ── Weekly: SecOps security audit + QA regression review ──────────
+  # ── Weekly: Core team session ─────────────────────────────
   weekly-teams:
     if: >-
       github.event_name == 'workflow_dispatch' ||
@@ -36,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        team: [secops, qa]
+        team: [core]
 
     steps:
       - name: Check if team requested (manual dispatch only)
@@ -74,8 +73,8 @@ jobs:
         if: steps.check.outputs.run != 'false'
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run security scan (SecOps pre-step)
-        if: steps.check.outputs.run != 'false' && matrix.team == 'secops'
+      - name: Run security scan (weekly pre-step)
+        if: steps.check.outputs.run != 'false'
         continue-on-error: true
         working-directory: repo
         env:
@@ -118,7 +117,7 @@ jobs:
               "https://ntfy.sh/$NTFY_TOPIC" || true
           fi
 
-  # ── Monthly: People & Culture, Post-Launch, Data Eng, Librarian ──
+  # ── Monthly: Extended core session ───────────────────────
   monthly-teams:
     if: >-
       github.event_name == 'workflow_dispatch' ||
@@ -128,7 +127,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        team: [people-culture, post-launch, data-engineering, librarian]
+        team: [core]
 
     steps:
       - name: Check if team requested (manual dispatch only)
